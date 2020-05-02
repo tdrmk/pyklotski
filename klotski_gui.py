@@ -51,6 +51,9 @@ def game():
             if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 reset()
 
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_LEFT:
+                board.back()
+
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 handle_select(event.pos)
 

@@ -209,6 +209,7 @@ class Board:
         assert isinstance(pieces[-1], Piece2x2)
         self.pieces = pieces
         self.main_piece = pieces[-1]
+        self.history = []
 
     @classmethod
     def from_start_position(cls):
@@ -258,4 +259,11 @@ class Board:
 
     def move(self, piece, position):
         assert self._can_move(piece, position)
+        # insert into history the previous position
+        self.history.append((piece, piece.position))
         piece.update_position(position)
+
+    def back(self):
+        if self.history:
+            piece, position = self.history.pop()
+            piece.update_position(position)
