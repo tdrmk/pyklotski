@@ -1,6 +1,7 @@
 import pygame
 
 from game import Board, Position
+from solver import bfs_solver
 from utilities import darken_color
 
 pygame.font.init()
@@ -31,9 +32,48 @@ clock = pygame.time.Clock()
 pygame.display.set_caption('Klotski Puzzle')
 
 
+class AutoSolver:
+    INTERVAL = int(FPS * 0.5)
+    def __init__(self, board):
+        self.board = board
+        self.enabled = False
+        self.steps = None
+        self.timer = 0
+
+    def is_loading(self):
+        return self.enabled and self.steps is None
+
+    def enable(self, interval=INTERVAL):
+        self.enabled = True
+        self.timer = interval
+        self.INTERVAL = interval
+        pygame.display.set_caption('Klotski Puzzle (Auto Solver Mode)')
+
+    def loop(self):
+        if self.enabled:
+            if self.steps is None:
+                # Compute the steps needed
+                self.steps = bfs_solver(self.board)
+            elif len(self.steps) == 0:
+                # Exit the auto-solver mode
+                self.steps = None
+                self.enabled = False
+                pygame.display.set_caption('Klotski Puzzle')
+            elif self.timer <= 0:
+                    # Apply the steps one after another after count-down
+                    self.timer = self.INTERVAL
+                    piece, move = self.steps.pop(0)
+                    self.board.move(piece, move)
+            else:
+                # Timer to control the speed of solver
+                self.timer -= 1
+
+
+
 def game():
     run = True
     board = Board.from_start_position()
+    solver = AutoSolver(board)
     selected_piece = None
 
     # A surface to draw the board onto..
@@ -71,6 +111,12 @@ def game():
                      (BOARD_OFFSETS[0] + BOARD_SIZE[0] // 2 - success_label.get_width() // 2,
                       BOARD_OFFSETS[1] + BOARD_SIZE[1] // 2 - success_label.get_height() // 2))
 
+        if solver.is_loading():
+            loading_label = main_font.render(f"Loading...", 1, text_color)
+            win.blit(loading_label,
+                     (BOARD_OFFSETS[0] + BOARD_SIZE[0] // 2 - loading_label.get_width() // 2,
+                      BOARD_OFFSETS[1] + BOARD_SIZE[1] // 2 - loading_label.get_height() // 2))
+
     def handle_select(pos):
         nonlocal selected_piece
         selected_piece = None
@@ -78,11 +124,6 @@ def game():
         if 0 <= pos[0] < BOARD_SIZE[0] and 0 <= pos[1] < BOARD_SIZE[1]:
             position = Position(pos[0] // TILE_SIZE, pos[1] // TILE_SIZE)
             selected_piece = board.get_piece(position)
-
-    def reset():
-        nonlocal board, selected_piece
-        board = Board.from_start_position()
-        selected_piece = None
 
     def handle_drop(pos):
         nonlocal selected_piece
@@ -94,29 +135,61 @@ def game():
                 if possible_pos:
                     board.move(selected_piece, possible_pos)
 
+    def reset():
+        nonlocal board, selected_piece, solver
+        board = Board.from_start_position()
+        selected_piece = None
+        # Reset the solver as well
+        solver = AutoSolver(board)
+
+    def handle_user_event(_event):
+        nonlocal selected_piece
+        if _event.type == pygame.KEYDOWN:
+            # Board reset
+            if _event.key == pygame.K_r:
+                reset()
+
+            # History events
+            if _event.key == pygame.K_LEFT:
+                board.history_back()
+            if _event.key == pygame.K_RIGHT:
+                board.history_forward()
+
+            # Solver
+            if _event.key == pygame.K_a:    # Normal Solver
+                selected_piece = None
+                solver.enable()
+            if _event.key == pygame.K_s:    # Fast solver
+                selected_piece = None
+                solver.enable(int(FPS * 0.1))
+
+        if _event.type == pygame.MOUSEBUTTONDOWN and _event.button == 1:
+            handle_select(_event.pos)
+
+        if _event.type == pygame.MOUSEBUTTONUP and _event.button == 1:
+            handle_drop(_event.pos)
+
     while run:
         draw()
         pygame.display.update()
+        solver.loop()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT or \
                     (event.type == pygame.KEYDOWN and event.key == pygame.K_q):
                 run = False
 
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
-                reset()
+            if not solver.enabled:
+                handle_user_event(event)
 
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_LEFT:
-                board.back()
-
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_RIGHT:
-                board.front()
-
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                handle_select(event.pos)
-
-            if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                handle_drop(event.pos)
+        if not solver.enabled:
+            # Power keys while navigating history
+            # Allows continuous press
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_DOWN]:
+                board.history_back()
+            elif keys[pygame.K_UP]:
+                board.history_forward()
 
         clock.tick(FPS)
 

@@ -24,11 +24,17 @@ class Piece:
         raise NotImplemented
 
     def update_position(self, position):
+        # Could be used later for tracking ??
         self.position = position
 
     def possible_moves(self, empty_positions):
-        # returns all positions the piece can move to
-        # given the empty positions (set) on the board
+        # returns all positions the piece can move to.
+        # empty_positions - set of empty positions
+        # NOTE: USED BY SOLVER
+        raise NotImplemented
+
+    def possible_moves_ui(self, empty_positions):
+        # same as above, however takes UI into consideration
         # return value is a tuple (ignore second value, as it is specific for UI)
         #  - first element is the list of all positions the piece can move
         #  - second element is a list corresponding to click positions
@@ -48,7 +54,7 @@ class Piece1x1(Piece):
     def positions(self):
         yield self.position
 
-    def possible_moves(self, empty_positions):
+    def possible_moves_ui(self, empty_positions):
         if is_neighbour(*empty_positions):
             # if empty positions are neighbouring each other and piece is neighbouring one of these positions
             # the piece can go to any of the empty positions
@@ -67,6 +73,17 @@ class Piece1x1(Piece):
         # positions where the UI is clicked is the same as new resultant positions
         return new_positions, click_positions
 
+    def possible_moves(self, empty_positions):
+        if is_neighbour(*empty_positions):
+            # if piece neighbours an empty position and empty positions themselves neighbour each other,
+            # piece can move to any of the positions
+            if any(is_neighbour(self.position, empty_position) for empty_position in empty_positions):
+                return list(empty_positions)
+            return []
+
+        # if empty position is a neighbour, piece can move there.
+        return [empty_position for empty_position in empty_positions if is_neighbour(self.position, empty_position)]
+
 
 class Piece1x2(Piece):
     WIDTH = 1
@@ -77,7 +94,7 @@ class Piece1x2(Piece):
         yield self.position
         yield Position(self.position.x, self.position.y + 1)
 
-    def possible_moves(self, empty_positions):
+    def possible_moves_ui(self, empty_positions):
         new_positions = []
         click_positions = []
         x, y = self.position
@@ -111,6 +128,25 @@ class Piece1x2(Piece):
 
         return new_positions, click_positions
 
+    def possible_moves(self, empty_positions):
+        new_positions = []
+        x, y = self.position
+        if Position(x, y - 1) in empty_positions:
+            new_positions.append(Position(x, y - 1))
+            if Position(x, y - 2) in empty_positions:
+                new_positions.append(Position(x, y - 2))
+        if Position(x, y + 2) in empty_positions:
+            new_positions.append(Position(x, y + 1))
+            if Position(x, y + 3) in empty_positions:
+                new_positions.append(Position(x, y + 2))
+
+        if {Position(x - 1, y), Position(x - 1, y + 1)} == empty_positions:
+            new_positions.append(Position(x - 1, y))
+        if {Position(x + 1, y), Position(x + 1, y + 1)} == empty_positions:
+            new_positions.append(Position(x + 1, y))
+
+        return new_positions
+
 
 class Piece2x1(Piece):
     WIDTH = 2
@@ -121,7 +157,7 @@ class Piece2x1(Piece):
         yield self.position
         yield Position(self.position.x + 1, self.position.y)
 
-    def possible_moves(self, empty_positions):
+    def possible_moves_ui(self, empty_positions):
         new_positions = []
         click_positions = []
         x, y = self.position
@@ -155,6 +191,25 @@ class Piece2x1(Piece):
 
         return new_positions, click_positions
 
+    def possible_moves(self, empty_positions):
+        new_positions = []
+        x, y = self.position
+        if Position(x - 1, y) in empty_positions:
+            new_positions.append(Position(x - 1, y))
+            if Position(x - 2, y) in empty_positions:
+                new_positions.append(Position(x - 2, y))
+        if Position(x + 2, y) in empty_positions:
+            new_positions.append(Position(x + 1, y))
+            if Position(x + 3, y) in empty_positions:
+                new_positions.append(Position(x + 2, y))
+
+        if {Position(x, y - 1), Position(x + 1, y - 1)} == empty_positions:
+            new_positions.append(Position(x, y - 1))
+        if {Position(x, y + 1), Position(x + 1, y + 1)} == empty_positions:
+            new_positions.append(Position(x, y + 1))
+
+        return new_positions
+
 
 class Piece2x2(Piece):
     COLOR = (119, 17, 0)
@@ -168,7 +223,7 @@ class Piece2x2(Piece):
         yield Position(self.position.x, self.position.y + 1)
         yield Position(self.position.x + 1, self.position.y + 1)
 
-    def possible_moves(self, empty_positions):
+    def possible_moves_ui(self, empty_positions):
         new_positions = []
         click_positions = []
         x, y = self.position
@@ -193,6 +248,20 @@ class Piece2x2(Piece):
             click_positions.append(empty_positions)
 
         return new_positions, click_positions
+
+    def possible_moves(self, empty_positions):
+        new_positions = []
+        x, y = self.position
+        if {Position(x, y - 1), Position(x + 1, y - 1)} == empty_positions:
+            new_positions.append(Position(x, y - 1))
+        if {Position(x, y + 2), Position(x + 1, y + 2)} == empty_positions:
+            new_positions.append(Position(x, y + 1))
+        if {Position(x - 1, y), Position(x - 1, y + 1)} == empty_positions:
+            new_positions.append(Position(x - 1, y))
+        if {Position(x + 2, y), Position(x + 2, y + 1)} == empty_positions:
+            new_positions.append(Position(x + 1, y))
+
+        return new_positions
 
 
 class Board:
@@ -244,7 +313,7 @@ class Board:
 
     def can_move(self, piece, click_position):
         empty_positions = self.empty_positions()
-        possible_positions, click_positions = piece.possible_moves(empty_positions)
+        possible_positions, click_positions = piece.possible_moves_ui(empty_positions)
         for possible_pos, click_pos in zip(possible_positions, click_positions):
             if click_position in click_pos:
                 return possible_pos
@@ -252,7 +321,7 @@ class Board:
 
     def _can_move(self, piece, position):
         empty_positions = self.empty_positions()
-        possible_positions, _ = piece.possible_moves(empty_positions)
+        possible_positions = piece.possible_moves(empty_positions)
         if position in possible_positions:
             return True
 
@@ -264,14 +333,14 @@ class Board:
         self.history_insert += 1
         piece.update_position(position)
 
-    def back(self):
+    def history_back(self):
         if self.history[:self.history_insert]:
             self.history_insert -= 1
             piece, position = self.history[self.history_insert]
             self.history[self.history_insert] = (piece, piece.position)
             piece.update_position(position)
 
-    def front(self):
+    def history_forward(self):
         if self.history_insert < len(self.history):
             piece, position = self.history[self.history_insert]
             self.history[self.history_insert] = (piece, piece.position)
