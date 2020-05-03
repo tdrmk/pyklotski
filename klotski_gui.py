@@ -98,14 +98,20 @@ class AutoSolver:
 
 
 class Loader:
+    """
+        Just a spinner to show while loading!
+    """
     INCREMENT = 2 * pi / FPS
     def __init__(self):
         self.start_angle = 0
         self.end_angle = 3 * pi / 2
 
-    def draw(self, surf):
-        width = int(min(surf.get_size()) * 0.1)
-        pygame.draw.arc(surf, (255, 255, 255), surf.get_rect(), self.start_angle, self.end_angle, width)
+    def draw(self, surf, rect: pygame.Rect):
+        """
+            Pass in a surface and rect to draw the spinner on!
+        """
+        width = int(rect.width * 0.1)   # 10 % of width
+        pygame.draw.arc(surf, (255, 255, 255), rect, self.start_angle, self.end_angle, width)
 
         # Update the angles
         self.start_angle = (self.start_angle + self.INCREMENT) % (2 * pi)
@@ -155,12 +161,7 @@ def game():
                       BOARD_OFFSETS[1] + BOARD_SIZE[1] // 2 - success_label.get_height() // 2))
 
         if solver.is_loading():
-            # loading_label = main_font.render(f"Loading...", 1, text_color)
-            loader_surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA, 32)
-            loader.draw(loader_surf)
-            win.blit(loader_surf,
-                     (BOARD_OFFSETS[0] + BOARD_SIZE[0] // 2 - loader_surf.get_width() // 2,
-                      BOARD_OFFSETS[1] + BOARD_SIZE[1] // 2 - loader_surf.get_height() // 2))
+            loader.draw(win, pygame.Rect((WIDTH // 2 - TILE_SIZE // 2, HEIGHT //2 - TILE_SIZE // 2,  TILE_SIZE, TILE_SIZE)))
 
     def handle_select(pos):
         nonlocal selected_piece
