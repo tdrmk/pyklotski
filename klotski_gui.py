@@ -1,3 +1,6 @@
+import threading
+from math import pi
+
 import pygame
 
 from game import Board, Position
@@ -31,14 +34,19 @@ win = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
 pygame.display.set_caption('Klotski Puzzle')
 
-
 class AutoSolver:
     INTERVAL = int(FPS * 0.5)
+
     def __init__(self, board):
         self.board = board
         self.enabled = False
         self.steps = None
         self.timer = 0
+
+        # For computing the steps asynchronously
+        # in another thread
+        self.lock = threading.Lock()
+        self.thread = None
 
     def is_loading(self):
         return self.enabled and self.steps is None
@@ -47,27 +55,61 @@ class AutoSolver:
         self.enabled = True
         self.timer = interval
         self.INTERVAL = interval
-        pygame.display.set_caption('Klotski Puzzle (Auto Solver Mode)')
+
+    def fetch_steps(self):
+        # This method is called asynchronously
+        # This is an CPU intensive blocking task.
+        # updates the steps once computed.
+        steps = bfs_solver(self.board)
+        with self.lock:
+            # modify shared variables after acquiring lock
+            self.steps = steps
+            self.thread = None
 
     def loop(self):
         if self.enabled:
-            if self.steps is None:
-                # Compute the steps needed
-                self.steps = bfs_solver(self.board)
-            elif len(self.steps) == 0:
-                # Exit the auto-solver mode
-                self.steps = None
-                self.enabled = False
-                pygame.display.set_caption('Klotski Puzzle')
-            elif self.timer <= 0:
-                    # Apply the steps one after another after count-down
-                    self.timer = self.INTERVAL
+            with self.lock:
+                # Steps not yet computed
+                if self.steps is None:
+                    # Compute the steps, asynchronously
+                    if self.thread is None:
+                        # launch a thread to compute the steps
+                        self.thread = threading.Thread(target=self.fetch_steps)
+                        self.thread.start()
+                    # Computation is in progress
+
+                # All the steps applied
+                elif len(self.steps) == 0:
+                    # Exit the auto-solver mode
+                    self.steps = None
+                    self.enabled = False
+
+                # Adjust timer
+                elif self.timer > 0:
+                    # Timer to control the speed of solver
+                    self.timer -= 1
+
+                # Apply the steps after count-down
+                else:
                     piece, move = self.steps.pop(0)
                     self.board.move(piece, move)
-            else:
-                # Timer to control the speed of solver
-                self.timer -= 1
+                    # Reset the timer ..
+                    self.timer = self.INTERVAL
 
+
+class Loader:
+    INCREMENT = 2 * pi / FPS
+    def __init__(self):
+        self.start_angle = 0
+        self.end_angle = 3 * pi / 2
+
+    def draw(self, surf):
+        width = int(min(surf.get_size()) * 0.1)
+        pygame.draw.arc(surf, (255, 255, 255), surf.get_rect(), self.start_angle, self.end_angle, width)
+
+        # Update the angles
+        self.start_angle = (self.start_angle + self.INCREMENT) % (2 * pi)
+        self.end_angle = (self.end_angle + self.INCREMENT) % (2 * pi)
 
 
 def game():
@@ -78,6 +120,7 @@ def game():
 
     # A surface to draw the board onto..
     board_surf = pygame.Surface(BOARD_SIZE)
+    loader = Loader()
 
     def draw():
         board_color = (205, 127, 50)
@@ -112,10 +155,12 @@ def game():
                       BOARD_OFFSETS[1] + BOARD_SIZE[1] // 2 - success_label.get_height() // 2))
 
         if solver.is_loading():
-            loading_label = main_font.render(f"Loading...", 1, text_color)
-            win.blit(loading_label,
-                     (BOARD_OFFSETS[0] + BOARD_SIZE[0] // 2 - loading_label.get_width() // 2,
-                      BOARD_OFFSETS[1] + BOARD_SIZE[1] // 2 - loading_label.get_height() // 2))
+            # loading_label = main_font.render(f"Loading...", 1, text_color)
+            loader_surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA, 32)
+            loader.draw(loader_surf)
+            win.blit(loader_surf,
+                     (BOARD_OFFSETS[0] + BOARD_SIZE[0] // 2 - loader_surf.get_width() // 2,
+                      BOARD_OFFSETS[1] + BOARD_SIZE[1] // 2 - loader_surf.get_height() // 2))
 
     def handle_select(pos):
         nonlocal selected_piece
@@ -156,10 +201,10 @@ def game():
                 board.history_forward()
 
             # Solver
-            if _event.key == pygame.K_a:    # Normal Solver
+            if _event.key == pygame.K_a:  # Normal Solver
                 selected_piece = None
                 solver.enable()
-            if _event.key == pygame.K_s:    # Fast solver
+            if _event.key == pygame.K_s:  # Fast solver
                 selected_piece = None
                 solver.enable(int(FPS * 0.1))
 
@@ -192,6 +237,7 @@ def game():
                 board.history_forward()
 
         clock.tick(FPS)
+    pygame.quit()
 
 
 if __name__ == '__main__':
