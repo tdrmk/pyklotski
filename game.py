@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-import pygame
+from utilities import draw_piece
 
 Position = namedtuple('Position', ['x', 'y'])
 
@@ -12,9 +12,6 @@ def is_neighbour(_pos1: Position, _pos2: Position):
 
 class Piece:
     COLOR = (193, 154, 107)
-    MARGIN = (92, 76, 53)
-    SPACE = 0.05
-    BORDER = 0.05
     WIDTH = 0
     HEIGHT = 0
 
@@ -39,11 +36,8 @@ class Piece:
         raise NotImplemented
 
     def draw(self, surf, size):
-        margin = int(size * self.SPACE)
-        rect = (self.position.x * size + margin, self.position.y * size + margin, self.WIDTH * size - 2 * margin,
-                self.HEIGHT * size - 2 * margin)
-        pygame.draw.rect(surf, self.COLOR, rect)
-        pygame.draw.rect(surf, self.MARGIN, rect, int(size * self.BORDER))
+        draw_piece(surf, self.COLOR, self.position.x * size, self.position.y * size, self.WIDTH * size,
+                   self.HEIGHT * size, size)
 
 
 class Piece1x1(Piece):
@@ -164,7 +158,6 @@ class Piece2x1(Piece):
 
 class Piece2x2(Piece):
     COLOR = (119, 17, 0)
-    MARGIN = (60, 9, 0)
     WIDTH = 2
     HEIGHT = 2
 
@@ -210,6 +203,11 @@ class Board:
         self.pieces = pieces
         self.main_piece = pieces[-1]
         self.history = []
+        self.history_insert = 0
+
+    @property
+    def number_of_steps(self):
+        return self.history_insert
 
     @classmethod
     def from_start_position(cls):
@@ -228,6 +226,7 @@ class Board:
         # positions with no piece are empty
         return positions
 
+    @property
     def is_solved(self):
         # check if main piece is in the expected finish position
         return self.main_piece.position == Position(1, 3)
@@ -260,10 +259,21 @@ class Board:
     def move(self, piece, position):
         assert self._can_move(piece, position)
         # insert into history the previous position
+        self.history = self.history[:self.history_insert]
         self.history.append((piece, piece.position))
+        self.history_insert += 1
         piece.update_position(position)
 
     def back(self):
-        if self.history:
-            piece, position = self.history.pop()
+        if self.history[:self.history_insert]:
+            self.history_insert -= 1
+            piece, position = self.history[self.history_insert]
+            self.history[self.history_insert] = (piece, piece.position)
+            piece.update_position(position)
+
+    def front(self):
+        if self.history_insert < len(self.history):
+            piece, position = self.history[self.history_insert]
+            self.history[self.history_insert] = (piece, piece.position)
+            self.history_insert += 1
             piece.update_position(position)
