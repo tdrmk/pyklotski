@@ -4,6 +4,7 @@ from math import pi
 import pygame
 
 from game import Board, Position
+from recorder import ScreenRecorder
 from solver import bfs_solver
 from utilities import darken_color
 
@@ -33,6 +34,7 @@ FPS = 60
 win = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
 pygame.display.set_caption('Klotski Puzzle')
+
 
 class AutoSolver:
     INTERVAL = int(FPS * 0.5)
@@ -102,6 +104,7 @@ class Loader:
         Just a spinner to show while loading!
     """
     INCREMENT = 2 * pi / FPS
+
     def __init__(self):
         self.start_angle = 0
         self.end_angle = 3 * pi / 2
@@ -110,7 +113,7 @@ class Loader:
         """
             Pass in a surface and rect to draw the spinner on!
         """
-        width = int(rect.width * 0.1)   # 10 % of width
+        width = int(rect.width * 0.1)  # 10 % of width
         pygame.draw.arc(surf, (255, 255, 255), rect, self.start_angle, self.end_angle, width)
 
         # Update the angles
@@ -119,6 +122,9 @@ class Loader:
 
 
 def game():
+    # For screen-casting
+    recorder = ScreenRecorder(WIDTH, HEIGHT, FPS)
+
     run = True
     board = Board.from_start_position()
     solver = AutoSolver(board)
@@ -161,7 +167,8 @@ def game():
                       BOARD_OFFSETS[1] + BOARD_SIZE[1] // 2 - success_label.get_height() // 2))
 
         if solver.is_loading():
-            loader.draw(win, pygame.Rect((WIDTH // 2 - TILE_SIZE // 2, HEIGHT //2 - TILE_SIZE // 2,  TILE_SIZE, TILE_SIZE)))
+            loader.draw(win,
+                        pygame.Rect((WIDTH // 2 - TILE_SIZE // 2, HEIGHT // 2 - TILE_SIZE // 2, TILE_SIZE, TILE_SIZE)))
 
     def handle_select(pos):
         nonlocal selected_piece
@@ -218,6 +225,7 @@ def game():
     while run:
         draw()
         pygame.display.update()
+        recorder.capture_frame(win)
         solver.loop()
 
         for event in pygame.event.get():
@@ -238,6 +246,8 @@ def game():
                 board.history_forward()
 
         clock.tick(FPS)
+
+    recorder.stop()
     pygame.quit()
 
 

@@ -2,4 +2,3 @@ test.py
 .idea
 __pycache__
 *.avi
-game_recorder.py
