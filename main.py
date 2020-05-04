@@ -1,3 +1,30 @@
+#!/usr/bin/env python
+from argparse import ArgumentParser
+
+# Parsing command-line arguments
+description = """
+    Klotski Puzzle is yet another sliding block puzzle.
+    How To Play:
+        Drag the pieces to move it around the board.
+        To win, move the largest piece to the bottom middle.
+    Note: It takes at-least 81 steps to solve the puzzle.
+
+    Use the arrow keys to undo or redo step(s).
+    Press R to reset the board.
+    Press A (or S) for computer solution.
+    Press Q to quit.
+
+    This application is implemented in python using PyGame module.
+    To record the game, pass in --record argument.
+"""
+parser = ArgumentParser(description=description, epilog='Author: tdrk')
+parser.add_argument('--record', default=False, action='store_true', help='record game screen')
+parser.add_argument('--output', default='output.avi',
+                    help='file to output recording. must have an .avi extension. default: output.avi ')
+args = parser.parse_args()
+RECORD_SCREEN = args.record
+OUTPUT_FILE = args.output
+
 import threading
 from math import pi
 
@@ -11,7 +38,7 @@ from utilities import darken_color
 pygame.font.init()
 
 TILE_SIZE = 100
-main_font = pygame.font.SysFont('comicsans', 50)
+main_font = pygame.font.Font(None, 50)
 FONT_HEIGHT = main_font.get_height()
 MARGIN = int(TILE_SIZE * 0.1)
 
@@ -139,8 +166,8 @@ class Loader:
 
 def game():
     # For screen-casting
-    recorder = ScreenRecorder(WIDTH, HEIGHT, FPS)
-
+    if RECORD_SCREEN:
+        recorder = ScreenRecorder(WIDTH, HEIGHT, FPS, out_file=OUTPUT_FILE)
     run = True
     board = Board.from_start_position()
     solver = AutoSolver(board)
@@ -250,7 +277,8 @@ def game():
     while run:
         draw()
         pygame.display.update()
-        recorder.capture_frame(win)
+        if RECORD_SCREEN:
+            recorder.capture_frame(win)
         solver.loop()
 
         for event in pygame.event.get():
@@ -273,7 +301,8 @@ def game():
 
         clock.tick(FPS)
 
-    recorder.stop()
+    if RECORD_SCREEN:
+        recorder.stop()
     pygame.quit()
 
 
