@@ -37,23 +37,36 @@ pygame.display.set_caption('Klotski Puzzle')
 
 
 class AutoSolver:
+    """
+        Wrapper around the bfs_solver, maintains state useful for the game.
+        Main States:
+            enabled: When the solver is running
+                - loading: When the solver is running and computing the steps async
+                - otherwise, its simulating the steps
+    """
     INTERVAL = int(FPS * 0.5)
 
     def __init__(self, board):
         self.board = board
-        self.enabled = False
-        self.steps = None
-        self.timer = 0
+        self.enabled = False  # whether auto-solver is running
+        self.steps = None  # remaining steps to take
 
         # For computing the steps asynchronously
         # in another thread
         self.lock = threading.Lock()
-        self.thread = None
+        self.thread = None  # reference to the computation thread
+        # NOTE: self.steps and self.thread is shared between threads, access needs a lock
 
-    def is_loading(self):
-        return self.enabled and self.steps is None
+        self.timer = 0  # just a counter to maintain an interval between steps
+
+    @property
+    def loading(self):
+        # Checks if async thread is running
+        with self.lock:
+            return self.enabled and self.steps is None
 
     def enable(self, interval=INTERVAL):
+        # To enable the auto-solver
         self.enabled = True
         self.timer = interval
         self.INTERVAL = interval
@@ -69,6 +82,8 @@ class AutoSolver:
             self.thread = None
 
     def loop(self):
+        # The main loop, to be called with every iteration of game loop
+        # it modifies the board, when auto-solver is enabled.
         if self.enabled:
             with self.lock:
                 # Steps not yet computed
@@ -93,6 +108,7 @@ class AutoSolver:
 
                 # Apply the steps after count-down
                 else:
+                    # MODIFIES THE BOARD!
                     piece, move = self.steps.pop(0)
                     self.board.move(piece, move)
                     # Reset the timer ..
@@ -103,7 +119,7 @@ class Loader:
     """
         Just a spinner to show while loading!
     """
-    INCREMENT = 2 * pi / FPS
+    INCREMENT = 4 * pi / FPS
 
     def __init__(self):
         self.start_angle = 0
@@ -117,8 +133,8 @@ class Loader:
         pygame.draw.arc(surf, (255, 255, 255), rect, self.start_angle, self.end_angle, width)
 
         # Update the angles
-        self.start_angle = (self.start_angle + self.INCREMENT) % (2 * pi)
-        self.end_angle = (self.end_angle + self.INCREMENT) % (2 * pi)
+        self.start_angle = (self.start_angle - self.INCREMENT) % (2 * pi)
+        self.end_angle = (self.end_angle - self.INCREMENT) % (2 * pi)
 
 
 def game():
@@ -161,16 +177,21 @@ def game():
         win.blit(board_surf, BOARD_OFFSETS)
 
         if board.is_solved:
+            # Show the message when game is solved
+            # NOTE: Game does not end when puzzle is solved, user can continue..
             success_label = main_font.render(f"Congratulations!", 1, text_color)
             win.blit(success_label,
                      (BOARD_OFFSETS[0] + BOARD_SIZE[0] // 2 - success_label.get_width() // 2,
                       BOARD_OFFSETS[1] + BOARD_SIZE[1] // 2 - success_label.get_height() // 2))
 
-        if solver.is_loading():
+        if solver.loading:
+            # Show a loader when auto-solver is computing the moves.
             loader.draw(win,
                         pygame.Rect((WIDTH // 2 - TILE_SIZE // 2, HEIGHT // 2 - TILE_SIZE // 2, TILE_SIZE, TILE_SIZE)))
 
     def handle_select(pos):
+        # Handles mouse button down event.
+        # Sets the selected_piece if a piece is selected
         nonlocal selected_piece
         selected_piece = None
         pos = pos[0] - BOARD_OFFSETS[0], pos[1] - BOARD_OFFSETS[1]
@@ -179,16 +200,20 @@ def game():
             selected_piece = board.get_piece(position)
 
     def handle_drop(pos):
+        # Handles mouse button up event.
+        # Moves the selected_piece if to specified position if allowed.
+        # Specified position must be an empty position!
         nonlocal selected_piece
         pos = pos[0] - BOARD_OFFSETS[0], pos[1] - BOARD_OFFSETS[1]
         if 0 <= pos[0] < BOARD_SIZE[0] and 0 <= pos[1] < BOARD_SIZE[1]:
-            position = Position(pos[0] // TILE_SIZE, pos[1] // TILE_SIZE)
+            click_position = Position(pos[0] // TILE_SIZE, pos[1] // TILE_SIZE)
             if selected_piece:
-                possible_pos = board.can_move(selected_piece, position)
+                possible_pos = board.can_move(selected_piece, click_position)
                 if possible_pos:
                     board.move(selected_piece, possible_pos)
 
     def reset():
+        # creates a new board to reset it
         nonlocal board, selected_piece, solver
         board = Board.from_start_position()
         selected_piece = None
@@ -216,10 +241,10 @@ def game():
                 selected_piece = None
                 solver.enable(int(FPS * 0.1))
 
-        if _event.type == pygame.MOUSEBUTTONDOWN and _event.button == 1:
+        if _event.type == pygame.MOUSEBUTTONDOWN and _event.button == 1:  # left click
             handle_select(_event.pos)
 
-        if _event.type == pygame.MOUSEBUTTONUP and _event.button == 1:
+        if _event.type == pygame.MOUSEBUTTONUP and _event.button == 1:  # left click
             handle_drop(_event.pos)
 
     while run:
@@ -234,6 +259,7 @@ def game():
                 run = False
 
             if not solver.enabled:
+                # User inputs taken only when solver not running
                 handle_user_event(event)
 
         if not solver.enabled:

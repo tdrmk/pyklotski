@@ -312,6 +312,10 @@ class Board:
             piece.draw(surf, size)
 
     def can_move(self, piece, click_position):
+        # click position is on of the empty positions,
+        # to which user drags a piece.
+        # NOTE: if the piece can move, returns
+        # the new start position of the piece.
         empty_positions = self.empty_positions()
         possible_positions, click_positions = piece.possible_moves_ui(empty_positions)
         for possible_pos, click_pos in zip(possible_positions, click_positions):
@@ -320,12 +324,15 @@ class Board:
         return None
 
     def _can_move(self, piece, position):
+        # position is the new start position of the piece
+        # Note: piece is denoted by the start position.
         empty_positions = self.empty_positions()
         possible_positions = piece.possible_moves(empty_positions)
         if position in possible_positions:
             return True
 
     def move(self, piece, position):
+        # position is the new start position of the piece
         assert self._can_move(piece, position)
         # insert into history the previous position
         self.history = self.history[:self.history_insert]
@@ -333,6 +340,8 @@ class Board:
         self.history_insert += 1
         piece.update_position(position)
 
+    # The history functions manipulate the history stack to
+    # support undo and redo of steps.
     def history_back(self):
         if self.history[:self.history_insert]:
             self.history_insert -= 1

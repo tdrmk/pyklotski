@@ -143,3 +143,29 @@ def bfs_solver(_board: _Board):
         board, piece, move = transitions[board]
         moves_taken.insert(0, (piece, move))
     return moves_taken
+
+
+def explore_states():
+    # Used for exploration and analysis
+    initial_board = Board.from_board(_Board.from_start_position())
+
+    visited_boards = set()
+    new_boards = {initial_board}
+
+    while new_boards:
+        board = new_boards.pop()
+        visited_boards.add(board)
+        for piece, move in board.potential_moves():
+            # go to new board to explore it.
+            new_board = board.move(piece, move)
+            if new_board not in visited_boards:
+                new_boards.add(new_board)
+
+    total_boards = len(visited_boards)
+    # Visited Boards contain all the boards reachable from initial_position
+    solution_boards = sum(board.is_solved for board in visited_boards)
+    print(f"Possible board configurations are {total_boards}, of which {solution_boards} are solutions.")
+
+
+if __name__ == '__main__':
+    explore_states()

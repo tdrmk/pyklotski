@@ -1,6 +1,7 @@
 import cv2
 import pygame
 
+# Refer to https://github.com/tdrmk/pygame_recorder for more details
 class ScreenRecorder:
     def __init__(self, width, height, fps, out_file = 'output.avi'):
         # define the codec and create a video writer object
